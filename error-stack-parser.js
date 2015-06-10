@@ -13,6 +13,42 @@
 
     var FIREFOX_SAFARI_STACK_REGEXP = /\S+\:\d+/;
     var CHROME_IE_STACK_REGEXP = /\s+at /;
+    var map, filter;
+
+    if (Array.prototype.map) {
+        map = function (arr, fn) {
+            return arr.map(fn);
+        };
+    } else {
+        map = function (arr, fn) {
+            var i;
+            var len = arr.length;
+            var ret = [];
+
+            for (i = 0; i < len; ++i) {
+                ret.push(fn(arr[i]));
+            }
+            return ret;
+        };
+    }
+
+    if (Array.prototype.filter) {
+        filter = function (arr, fn) {
+            return arr.filter(fn);
+        };
+    } else {
+        filter = function (arr, fn) {
+            var i;
+            var len = arr.length;
+            var ret = [];
+            for (i = 0; i < len; ++i) {
+                if (fn(arr[i])) {
+                    ret.push(arr[i]);
+                }
+            }
+            return ret;
+        };
+    }
 
     return {
         /**
@@ -55,23 +91,28 @@
         },
 
         parseV8OrIE: function ErrorStackParser$$parseV8OrIE(error) {
-            return error.stack.split('\n').slice(1).map(function (line) {
+            var extractLocation = this.extractLocation;
+            var mapped = map(error.stack.split('\n').slice(1), function (line) {
                 var tokens = line.replace(/^\s+/, '').split(/\s+/).slice(1);
-                var locationParts = this.extractLocation(tokens.pop());
+                var locationParts = extractLocation(tokens.pop());
                 var functionName = (!tokens[0] || tokens[0] === 'Anonymous') ? undefined : tokens[0];
                 return new StackFrame(functionName, undefined, locationParts[0], locationParts[1], locationParts[2]);
-            }, this);
+            });
+            return mapped;
         },
 
         parseFFOrSafari: function ErrorStackParser$$parseFFOrSafari(error) {
-            return error.stack.split('\n').filter(function (line) {
+            var filtered = filter(error.stack.split('\n'), function (line) {
                 return !!line.match(FIREFOX_SAFARI_STACK_REGEXP);
-            }, this).map(function (line) {
+            });
+            var extractLocation = this.extractLocation;
+            var mapped = map(filtered, function (line) {
                 var tokens = line.split('@');
-                var locationParts = this.extractLocation(tokens.pop());
+                var locationParts = extractLocation(tokens.pop());
                 var functionName = tokens.shift() || undefined;
                 return new StackFrame(functionName, undefined, locationParts[0], locationParts[1], locationParts[2]);
-            }, this);
+            });
+            return mapped;
         },
 
         parseOpera: function ErrorStackParser$$parseOpera(e) {
@@ -117,12 +158,13 @@
 
         // Opera 10.65+ Error.stack very similar to FF/Safari
         parseOpera11: function ErrorStackParser$$parseOpera11(error) {
-            return error.stack.split('\n').filter(function (line) {
-                return !!line.match(FIREFOX_SAFARI_STACK_REGEXP) &&
-                    !line.match(/^Error created at/);
-            }, this).map(function (line) {
+            var filtered = filter(error.stack.split('\n'), function (line) {
+                return !!line.match(FIREFOX_SAFARI_STACK_REGEXP) && !line.match(/^Error created at/);
+            });
+            var extractLocation = this.extractLocation;
+            var mapped = map(filtered, function (line) {
                 var tokens = line.split('@');
-                var locationParts = this.extractLocation(tokens.pop());
+                var locationParts = extractLocation(tokens.pop());
                 var functionCall = (tokens.shift() || '');
                 var functionName = functionCall
                         .replace(/<anonymous function(: (\w+))?>/, '$2')
@@ -133,7 +175,8 @@
                 }
                 var args = (argsRaw === undefined || argsRaw === '[arguments not available]') ? undefined : argsRaw.split(',');
                 return new StackFrame(functionName, args, locationParts[0], locationParts[1], locationParts[2]);
-            }, this);
+            });
+            return mapped;
         }
     };
 }));

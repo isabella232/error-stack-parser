@@ -27,7 +27,7 @@ clean:
 
 dist: $(build_files) $(sources) $(direct_dependencies)
 	mkdir $@
-	uglifyjs2 $(direct_dependencies) $(sources) -o $(minified) --source-map $(source_map)
+	uglifyjs $(direct_dependencies) $(sources) -o $(minified) --source-map $(source_map)
 	mv $(minified) $(source_map) $@
 	cp $(sources) $@
 
